@@ -465,7 +465,7 @@ tm.define("GameScene", {
                     shadowBlur: 10,
                     fontSize: 64,
                     fontFamily: FONT_FAMILY,
-                    text: "214",
+                    text: "",
                     align: "right",
                 },
                 {
@@ -567,7 +567,7 @@ tm.define("GameScene", {
         var self = this;
         this.restartButton.onpointingstart = function () {
             self.app.replaceScene(GameScene());
-            stageTimer = TIMER_MAX;
+            stageTimer = playMode.timer_max;
         };
 
         this.buttonAlpha = 0.0;
