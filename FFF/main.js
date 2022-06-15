@@ -23,6 +23,33 @@ const clearSE = new Howl({
 });
 
 // 定義
+var PLAY_MODE = defineEnum({
+    EASY: {
+        idx: 0,
+        play_cnt: 0,
+        timer_max: 30 * FPS,
+        tweet_txt: '',
+    },
+    NORMAL: {
+        idx: 1,
+        play_cnt: 10,
+        timer_max: 30 * FPS,
+        tweet_txt: '(NORMAL)',
+    },
+    HARD: {
+        idx: 2,
+        play_cnt: 20,
+        timer_max: 30 * FPS,
+        tweet_txt: '(HARD)',
+    },
+    EXTREME: {
+        idx: 3,
+        play_cnt: 30,
+        timer_max: 223 * FPS,   // 3分43秒
+        tweet_txt: '(EXTREME)',
+    },
+});
+
 var PL_STATUS = defineEnum({
     INIT: {
         value: 0,
@@ -66,8 +93,7 @@ var lilyNumArray = [];
 var lilyArray = [];
 var nowScore = 0;
 var totalSec = 0;
-var randomSeed = 3557;
-var hardModeFlag = Boolean(0);
+var playMode = null;
 var initStageNumBG = null;
 
 const buttonPosTbl = [
@@ -94,23 +120,43 @@ const buttonColorBaseTbl = [
     "#FFFFFF",
 ];
 const buttonColorTbl = [
+    // EASY
     [
-        "1E",
-        "2E",
-        "3E",
-        "4E",
-        "5E",
-        "6E",
-        "7E",
-        "8E",
-        "9E",
-        "AE",
-        "BE",
-        "CE",
-        "DE",
-        "EE",
-        "FE",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
+        "00",
     ],
+    // NORMAL
+    [
+        "0F",
+        "1F",
+        "2F",
+        "3F",
+        "4F",
+        "5F",
+        "6F",
+        "7F",
+        "8F",
+        "9F",
+        "AF",
+        "BF",
+        "CF",
+        "DF",
+        "EF",
+    ],
+    // HARD
     [
         "F0",
         "F1",
@@ -127,7 +173,12 @@ const buttonColorTbl = [
         "FC",
         "FD",
         "FE",
-    ]
+    ],
+    // EXTREME
+    [
+        "00",
+        //        "FE",
+    ],
 ];
 
 tm.main(function () {
@@ -196,12 +247,10 @@ tm.define("TitleScene", {
 
     init: function () {
         this.superInit();
-        var hardModeStr = localStorage.getItem("hmEnable");
-        var startButtonText;
-        if (hardModeStr === null) startButtonText = "START";
-        else if (hardModeStr === "0") startButtonText = "START";
-        else startButtonText = "NORMAL";
+        var playableModeStr = localStorage.getItem("fff.playableMode");
+        if (playableModeStr === null) playableModeStr = "0";
 
+        var easyButtonText = (playableModeStr === "0") ? "START" : "EASY";
         this.fromJSON({
             children: [
                 {
@@ -215,17 +264,32 @@ tm.define("TitleScene", {
                     align: "center",
                 },
                 {
-                    type: "FlatButton", name: "startButton",
+                    type: "FlatButton", name: "easyModeButton",
                     init: [
                         {
-                            text: startButtonText,
+                            text: easyButtonText,
                             fontFamily: FONT_FAMILY,
                             fontSize: 32,
-                            bgColor: "hsl(240, 0%, 70%)",
+                            bgColor: "hsl(240, 100.0%, 49.6%)",
                         }
                     ],
                     x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y + 128,
+                    y: SCREEN_CENTER_Y + 128 * 1,
+                    alpha: 0.0,
+                },
+                {
+                    type: "FlatButton", name: "normalModeButton",
+                    init: [
+                        {
+                            text: "NORMAL",
+                            fontFamily: FONT_FAMILY,
+                            fontSize: 32,
+                            bgColor: "hsl(275, 100.0%, 31.6%)",
+                        }
+                    ],
+                    x: SCREEN_CENTER_X,
+                    y: SCREEN_CENTER_Y + 128 * 2,
+                    alpha: 0.0,
                 },
                 {
                     type: "FlatButton", name: "hardModeButton",
@@ -234,37 +298,68 @@ tm.define("TitleScene", {
                             text: "HARD",
                             fontFamily: FONT_FAMILY,
                             fontSize: 32,
-                            bgColor: "hsl(0, 100%, 50%)",
+                            bgColor: "hsl(338, 100.0%, 36.5%)",
                         }
                     ],
                     x: SCREEN_CENTER_X,
                     y: SCREEN_CENTER_Y + 128 * 3,
                     alpha: 0.0,
                 },
+                {
+                    type: "FlatButton", name: "extremeModeButton",
+                    init: [
+                        {
+                            text: "EXTREME",
+                            fontFamily: FONT_FAMILY,
+                            fontSize: 32,
+                            bgColor: "hsl(0, 100.0%, 50.0%)",
+                        }
+                    ],
+                    x: SCREEN_CENTER_X,
+                    y: SCREEN_CENTER_Y + 128 * 4,
+                    alpha: 0.0,
+                },
             ]
         });
 
         this.localTimer = 0;
-        //var hardModeStr = localStorage.getItem("hmEnable");
-        if (hardModeStr === null) {
-            this.hardModeButton.sleep();
-        } else if (hardModeStr === "0") {
-            this.hardModeButton.sleep();
-        } else {
-            this.hardModeButton.setAlpha(1, 0);
-            this.hardModeButton.wakeUp();
+        this.easyModeButton.sleep();
+        this.normalModeButton.sleep();
+        this.hardModeButton.sleep();
+        this.extremeModeButton.sleep();
+        switch (playableModeStr) {
+            case "3":
+                this.extremeModeButton.setAlpha(1, 0);
+                this.extremeModeButton.wakeUp();
+            case "2":
+                this.hardModeButton.setAlpha(1, 0);
+                this.hardModeButton.wakeUp();
+            case "1":
+                this.normalModeButton.setAlpha(1, 0);
+                this.normalModeButton.wakeUp();
+            case "0":
+                this.easyModeButton.setAlpha(1, 0);
+                this.easyModeButton.wakeUp();
         }
-
         var self = this;
-        this.startButton.onpointingstart = function () {
-            hardModeFlag = Boolean(0);
-            stageTimer = TIMER_MAX;
+        this.easyModeButton.onpointingstart = function () {
+            playMode = PLAY_MODE.EASY;
+            stageTimer = playMode.timer_max;
             self.app.replaceScene(GameScene());
         };
-
+        this.normalModeButton.onpointingstart = function () {
+            playMode = PLAY_MODE.NORMAL;
+            stageTimer = playMode.timer_max;
+            self.app.replaceScene(GameScene());
+        };
         this.hardModeButton.onpointingstart = function () {
-            hardModeFlag = Boolean(1);
-            stageTimer = TIMER_MAX;
+            playMode = PLAY_MODE.HARD;
+            stageTimer = playMode.timer_max;
+            self.app.replaceScene(GameScene());
+        };
+        this.extremeModeButton.onpointingstart = function () {
+            playMode = PLAY_MODE.EXTREME;
+            stageTimer = playMode.timer_max;
             self.app.replaceScene(GameScene());
         };
     },
@@ -475,7 +570,6 @@ tm.define("GameScene", {
         };
 
         this.buttonAlpha = 0.0;
-        if (!hardModeFlag) randomSeed = 3557;
         nowScore = 0;
         stageInitTimer = 0;
         stageNum = 0;
@@ -505,7 +599,7 @@ tm.define("GameScene", {
                     var buttonIdx = buttonArray[ii];
                     var tmpPos = buttonPosTbl[ii];
                     var tmpColorBase = buttonColorBaseTbl[buttonIdx];
-                    var tmpColor = buttonColorTbl[hardModeFlag ? 1 : 0][stageNum - 1];
+                    var tmpColor = buttonColorTbl[playMode.idx][playMode === PLAY_MODE.EXTREME ? 0 : (stageNum - 1)];
                     var tmpFillStyle = tmpColorBase.replaceAll('xx', tmpColor).replaceAll('yy', tmpColor).replaceAll('zz', tmpColor);
                     console.log(">>>" + tmpFillStyle);
                     var tmpLilyBG = tm.display.RoundRectangleShape(360, 360, {
@@ -563,7 +657,7 @@ tm.define("GameScene", {
                 player.status = PL_STATUS.DEAD;
             }
             if (player.result === PL_RESULT.OK) {
-                if (stageNum < 15) {
+                if ((stageNum < 15) || (playMode === PLAY_MODE.EXTREME)) {
                     // next stage
                     player.status = PL_STATUS.INIT;
                     player.result = PL_RESULT.NONE;
@@ -588,16 +682,14 @@ tm.define("GameScene", {
 
                 var self = this;
                 // tweet ボタン
-                var hardModeStr = "";
-                if (hardModeFlag) hardModeStr = "(HARD)"
-                var tweetText = "0xFFFFFF" + hardModeStr + "\n";
+                var tweetText = "0xFFFFFF" + playMode.tweet_txt + "\n";
                 if (player.result === PL_RESULT.OK) {
                     tweetText += "全ステージクリア\nクリアタイム" + ((TIMER_MAX - stageTimer) / app.fps).toPrecision(5) + "秒\n";
                 } else {
                     if (stageNum === 1) {
                         tweetText += "記録無し\n";
                     } else {
-                        tweetText += "ステージ：" + (stageNum - 1) + "クリア\n";
+                        tweetText += "ステージ" + (stageNum - 1) + "　クリア\n";
                     }
                 }
                 this.tweetButton.onclick = function () {
@@ -609,9 +701,19 @@ tm.define("GameScene", {
                     });
                     window.open(twitterURL);
                 };
-                // 10面以上クリアでRANDOMモード開放
+                // モード開放
                 if (stageNum >= 15) {
-                    localStorage.setItem("hmEnable", "1");
+                    switch (playMode) {
+                        case PLAY_MODE.EASY:
+                            localStorage.setItem("fff.playableMode", "1");
+                            break;
+                        case PLAY_MODE.NORMAL:
+                            localStorage.setItem("fff.playableMode", "2");
+                            break;
+                        case PLAY_MODE.HARD:
+                            localStorage.setItem("fff.playableMode", "3");
+                            break;
+                    }
                 }
             }
 
