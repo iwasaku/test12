@@ -63,7 +63,7 @@ var PL_STATUS = defineEnum({
         isDead: Boolean(0),
         string: 'start'
     },
-    DEAD: {
+    END: {
         value: 2,
         isStart: Boolean(0),
         isDead: Boolean(1),
@@ -93,6 +93,7 @@ var lilyNumArray = [];
 var lilyArray = [];
 var nowScore = 0;
 var totalSec = 0;
+var playableMode = 0;
 var playMode = null;
 var initStageNumBG = null;
 
@@ -176,8 +177,7 @@ const buttonColorTbl = [
     ],
     // EXTREME
     [
-        "00",
-        //        "FE",
+        "FE",
     ],
 ];
 
@@ -249,8 +249,9 @@ tm.define("TitleScene", {
         this.superInit();
         var playableModeStr = localStorage.getItem("fff.playableMode");
         if (playableModeStr === null) playableModeStr = "0";
+        playableMode = parseInt(playableModeStr);
 
-        var easyButtonText = (playableModeStr === "0") ? "START" : "EASY";
+        var easyButtonText = (playableMode === 0) ? "START" : "EASY";
         this.fromJSON({
             children: [
                 {
@@ -327,17 +328,17 @@ tm.define("TitleScene", {
         this.normalModeButton.sleep();
         this.hardModeButton.sleep();
         this.extremeModeButton.sleep();
-        switch (playableModeStr) {
-            case "3":
+        switch (playableMode) {
+            case 3:
                 this.extremeModeButton.setAlpha(1, 0);
                 this.extremeModeButton.wakeUp();
-            case "2":
+            case 2:
                 this.hardModeButton.setAlpha(1, 0);
                 this.hardModeButton.wakeUp();
-            case "1":
+            case 1:
                 this.normalModeButton.setAlpha(1, 0);
                 this.normalModeButton.wakeUp();
-            case "0":
+            case 0:
                 this.easyModeButton.setAlpha(1, 0);
                 this.easyModeButton.wakeUp();
         }
@@ -654,7 +655,7 @@ tm.define("GameScene", {
             }
             if (stageTimer < 0) {
                 stageTimer = 0;
-                player.status = PL_STATUS.DEAD;
+                player.status = PL_STATUS.END;
             }
             if (player.result === PL_RESULT.OK) {
                 if ((stageNum < 15) || (playMode === PLAY_MODE.EXTREME)) {
@@ -664,11 +665,11 @@ tm.define("GameScene", {
                     correctSE.play();
                 } else {
                     // game clear
-                    player.status = PL_STATUS.DEAD;
+                    player.status = PL_STATUS.END;
                 }
             } else if (player.result === PL_RESULT.NG) {
                 // game over
-                player.status = PL_STATUS.DEAD;
+                player.status = PL_STATUS.END;
             }
             this.nowStageTimerLabel.text = Math.floor(stageTimer / app.fps);
         } else {
@@ -684,7 +685,7 @@ tm.define("GameScene", {
                 // tweet ボタン
                 var tweetText = "0xFFFFFF" + playMode.tweet_txt + "\n";
                 if (player.result === PL_RESULT.OK) {
-                    tweetText += "全ステージクリア\nクリアタイム" + ((TIMER_MAX - stageTimer) / app.fps).toPrecision(5) + "秒\n";
+                    tweetText += "全ステージクリア\nクリアタイム" + ((playMode.timer_max - stageTimer) / app.fps).toPrecision(5) + "秒\n";
                 } else {
                     if (stageNum === 1) {
                         tweetText += "記録無し\n";
@@ -702,16 +703,16 @@ tm.define("GameScene", {
                     window.open(twitterURL);
                 };
                 // モード開放
-                if (stageNum >= 15) {
+                if (player.result === PL_RESULT.OK) {
                     switch (playMode) {
                         case PLAY_MODE.EASY:
-                            localStorage.setItem("fff.playableMode", "1");
+                            if (playableMode <= 0) localStorage.setItem("fff.playableMode", "1");
                             break;
                         case PLAY_MODE.NORMAL:
-                            localStorage.setItem("fff.playableMode", "2");
+                            if (playableMode <= 1) localStorage.setItem("fff.playableMode", "2");
                             break;
                         case PLAY_MODE.HARD:
-                            localStorage.setItem("fff.playableMode", "3");
+                            if (playableMode <= 2) localStorage.setItem("fff.playableMode", "3");
                             break;
                     }
                 }
