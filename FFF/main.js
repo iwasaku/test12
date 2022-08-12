@@ -517,6 +517,19 @@ tm.define("GameScene", {
                     align: "center",
                 },
                 {
+                    type: "Label", name: "colorLabel",
+                    x: SCREEN_CENTER_X,
+                    y: SCREEN_CENTER_Y - 64,
+                    fillStyle: "#fff",
+                    shadowColor: "#000",
+                    shadowBlur: 10,
+                    fontSize: 64,
+                    fontFamily: FONT_FAMILY,
+                    text: "",
+                    align: "center",
+                },
+
+                {
                     type: "FlatButton", name: "tweetButton",
                     init: [
                         {
@@ -550,6 +563,7 @@ tm.define("GameScene", {
 
         this.gameClearLabel.setAlpha(0.0);
         this.gameOverLabel.setAlpha(0.0);
+        this.colorLabel.setAlpha(0.0);
         this.tweetButton.sleep();
         this.restartButton.sleep();
 
@@ -612,6 +626,7 @@ tm.define("GameScene", {
                     tmpLilyBG.setScale(0.9, 0.9);
                     tmpLilyBG.interactive = true;
                     tmpLilyBG.boundingType = "rect";
+                    tmpLilyBG.colorStr = tmpFillStyle.substr(1, 2) + "\n" + tmpFillStyle.substr(3, 2) + "\n" + tmpFillStyle.substr(5, 2);
                     //tmpLilyBG.checkHierarchy = true;
                     if (buttonIdx === 7) {
                         tmpLilyBG.onpointingstart = function () {
@@ -627,6 +642,7 @@ tm.define("GameScene", {
                         tmpLilyBG.onpointingstart = function () {
                             if (player.status.isStart) {
                                 player.result = PL_RESULT.NG;
+                                player.color = this.colorStr;
                                 console.log("NG");
                             }
                         };
@@ -718,6 +734,8 @@ tm.define("GameScene", {
                 }
             }
 
+            this.colorLabel.setAlpha(1.0);
+            this.colorLabel.text = player.color;
             this.buttonAlpha += 0.05;
             if (this.buttonAlpha > 1.0) {
                 this.buttonAlpha = 1.0;
@@ -750,6 +768,7 @@ tm.define("Player", {
         this.setInteractive(false);
         this.status = PL_STATUS.INIT;
         this.result = PL_RESULT.NONE;
+        this.color = "";
     },
 
     update: function (app) {
