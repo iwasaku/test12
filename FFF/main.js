@@ -1,4 +1,6 @@
-//console.log = function () { };  // ログを出す時にはコメントアウトする
+phina.globalize();
+
+console.log = function () { };  // ログを出す時にはコメントアウトする
 
 const FPS = 60;  // 60フレ
 const TIMER_MAX = (3 * 60 + 34) * FPS; // 3分34秒
@@ -10,17 +12,15 @@ const SCREEN_CENTER_Y = SCREEN_HEIGHT / 2;  // スクリーン高さの半分
 
 var FONT_FAMILY = "'Press Start 2P','Meiryo',sans-serif";
 var ASSETS = {
-    "lily": "./resource/lily.png",
+    image: {
+        "lily": "./resource/lily.png",
+    },
+    sound: {
+        "wrong_se": 'https://iwasaku.github.io/test11/UT-404/SSS2/resource/t02/12.mp3',
+        "correct_se": 'https://iwasaku.github.io/test11/UT-404/SSS1/resource/t04/27.mp3',
+        "clear_se": 'https://iwasaku.github.io/test11/UT-404/SSS4/resource/t01/04.mp3',
+    }
 };
-const wrongSE = new Howl({
-    src: 'https://iwasaku.github.io/test11/UT-404/SSS2/resource/t02/12.mp3'
-});
-const correctSE = new Howl({
-    src: 'https://iwasaku.github.io/test11/UT-404/SSS1/resource/t04/27.mp3'
-});
-const clearSE = new Howl({
-    src: 'https://iwasaku.github.io/test11/UT-404/SSS4/resource/t01/04.mp3'
-});
 
 // 定義
 var PLAY_MODE = defineEnum({
@@ -85,6 +85,7 @@ var PL_RESULT = defineEnum({
 var group0 = null;
 var group1 = null;
 var group2 = null;
+var group3 = null;
 var player = null;
 var stageInitTimer = 0;
 var stageNum = 0;
@@ -181,187 +182,215 @@ const buttonColorTbl = [
     ],
 ];
 
-tm.main(function () {
-    // アプリケーションクラスを生成
-    var app = tm.display.CanvasApp("#world");
-    app.resize(SCREEN_WIDTH, SCREEN_HEIGHT);    // サイズ(解像度)設定
-    app.fitWindow();                            // 自動フィッティング有効
-    app.background = "rgba(77, 136, 255, 1.0)"; // 背景色
-    app.fps = FPS;                               // フレーム数
-
-    var loading = tm.ui.LoadingScene({
-        assets: ASSETS,
+phina.main(function () {
+    var app = GameApp({
+        startLabel: 'logo',
         width: SCREEN_WIDTH,
         height: SCREEN_HEIGHT,
+        assets: ASSETS,
+        fps: FPS,
+        backgroundColor: 'black',
+
+        // シーンのリストを引数で渡す
+        scenes: [
+            {
+                className: 'LogoScene',
+                label: 'logo',
+                nextLabel: 'title',
+            },
+            {
+                className: 'TitleScene',
+                label: 'title',
+                nextLabel: 'game',
+            },
+            {
+                className: 'GameScene',
+                label: 'game',
+                nextLabel: 'game',
+            },
+        ]
     });
 
-    // 読み込み完了後に呼ばれるメソッドを登録
-    loading.onload = function () {
-        app.replaceScene(LogoScene());
-    };
+    // iOSなどでユーザー操作がないと音がならない仕様対策
+    // 起動後初めて画面をタッチした時に『無音』を鳴らす
+    app.domElement.addEventListener('touchend', function dummy() {
+        var s = phina.asset.Sound();
+        s.loadFromBuffer();
+        s.play().stop();
+        app.domElement.removeEventListener('touchend', dummy);
+    });
 
-    // ローディングシーンに入れ替える
-    app.replaceScene(loading);
+    // fps表示
+    //app.enableStats();
 
     // 実行
     app.run();
 });
 
 /*
+* ローディング画面をオーバーライド
+*/
+phina.define('LoadingScene', {
+    superClass: 'DisplayScene',
+
+    init: function (options) {
+        this.superInit(options);
+        // 背景色
+        var self = this;
+        var loader = phina.asset.AssetLoader();
+
+        // 明滅するラベル
+        let label = phina.display.Label({
+            text: "",
+            fontSize: 64,
+            fill: 'white',
+        }).addChildTo(this).setPosition(SCREEN_CENTER_X, SCREEN_CENTER_Y);
+
+        // ロードが進行したときの処理
+        loader.onprogress = function (e) {
+            // 進捗具合を％で表示する
+            label.text = "{0}%".format((e.progress * 100).toFixed(0));
+        };
+
+        // ローダーによるロード完了ハンドラ
+        loader.onload = function () {
+            // Appコアにロード完了を伝える（==次のSceneへ移行）
+            self.flare('loaded');
+        };
+
+        // ロード開始
+        loader.load(options.assets);
+    },
+});
+
+/*
  * ロゴ
  */
-tm.define("LogoScene", {
-    superClass: "tm.app.Scene",
+phina.define("LogoScene", {
+    superClass: 'DisplayScene',
 
-    init: function () {
-        this.superInit();
-        this.fromJSON({
-            children: [
-                {
-                    type: "Label", name: "logoLabel",
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y,
-                    fillStyle: "#888",
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "UNOFFICIAL GAME",
-                    align: "center",
-                },
-            ]
-        });
+    init: function (option) {
+        this.superInit(option);
         this.localTimer = 0;
     },
 
     update: function (app) {
-        // 時間が来たらタイトルへ
-        //        if (++this.localTimer >= 5 * app.fps)
-        this.app.replaceScene(TitleScene());
+        // フォント読み込み待ち
+        var self = this;
+        document.fonts.load('12px "Press Start 2P"').then(function () {
+            self.exit();
+        });
     }
 });
 
 /*
  * タイトル
  */
-tm.define("TitleScene", {
-    superClass: "tm.app.Scene",
+phina.define("TitleScene", {
+    superClass: 'DisplayScene',
 
-    init: function () {
-        this.superInit();
+    init: function (option) {
+        this.superInit(option);
+
         var playableModeStr = localStorage.getItem("fff.playableMode");
         if (playableModeStr === null) playableModeStr = "0";
         playableMode = parseInt(playableModeStr);
 
         var easyButtonText = (playableMode === 0) ? "START" : "EASY";
-        this.fromJSON({
-            children: [
-                {
-                    type: "Label", name: "titleLabel",
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y - (SCREEN_CENTER_Y / 4),
-                    fillStyle: "#fff",
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "0xFFFFFF",
-                    align: "center",
-                },
-                {
-                    type: "FlatButton", name: "easyModeButton",
-                    init: [
-                        {
-                            text: easyButtonText,
-                            fontFamily: FONT_FAMILY,
-                            fontSize: 32,
-                            bgColor: "hsl(240, 100.0%, 49.6%)",
-                        }
-                    ],
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y + 128 * 1,
-                    alpha: 0.0,
-                },
-                {
-                    type: "FlatButton", name: "normalModeButton",
-                    init: [
-                        {
-                            text: "NORMAL",
-                            fontFamily: FONT_FAMILY,
-                            fontSize: 32,
-                            bgColor: "hsl(275, 100.0%, 31.6%)",
-                        }
-                    ],
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y + 128 * 2,
-                    alpha: 0.0,
-                },
-                {
-                    type: "FlatButton", name: "hardModeButton",
-                    init: [
-                        {
-                            text: "HARD",
-                            fontFamily: FONT_FAMILY,
-                            fontSize: 32,
-                            bgColor: "hsl(338, 100.0%, 36.5%)",
-                        }
-                    ],
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y + 128 * 3,
-                    alpha: 0.0,
-                },
-                {
-                    type: "FlatButton", name: "extremeModeButton",
-                    init: [
-                        {
-                            text: "EXTREME",
-                            fontFamily: FONT_FAMILY,
-                            fontSize: 32,
-                            bgColor: "hsl(0, 100.0%, 50.0%)",
-                        }
-                    ],
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y + 128 * 4,
-                    alpha: 0.0,
-                },
-            ]
-        });
+
+        this.titleLabel = Label({
+            text: "0xFFFFFF",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "center",
+            fill: "#fff",
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y - (SCREEN_CENTER_Y / 4),
+        }).addChildTo(this);
+
+        this.easyModeButton = Button({
+            text: easyButtonText,
+            fontSize: 32,
+            fontFamily: FONT_FAMILY,
+            fill: "hsl(240, 100.0%, 49.6%)",
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y + 128 * 1,
+            cornerRadius: 8,
+        }).addChildTo(this);
+        this.normalModeButton = Button({
+            text: "NORMAL",
+            fontSize: 32,
+            fontFamily: FONT_FAMILY,
+            fill: "hsl(275, 100.0%, 31.6%)",
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y + 128 * 2,
+            cornerRadius: 8,
+        }).addChildTo(this);
+        this.hardModeButton = Button({
+            text: "HARD",
+            fontSize: 32,
+            fontFamily: FONT_FAMILY,
+            fill: "hsl(338, 100.0%, 36.5%)",
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y + 128 * 3,
+            cornerRadius: 8,
+        }).addChildTo(this);
+        this.extremeModeButton = Button({
+            text: "EXTREME",
+            fontSize: 32,
+            fontFamily: FONT_FAMILY,
+            fill: "hsl(0, 100.0%, 50.0%)",
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y + 128 * 4,
+            cornerRadius: 8,
+        }).addChildTo(this);
 
         this.localTimer = 0;
+        this.easyModeButton.alpha = 0.0;
         this.easyModeButton.sleep();
+        this.normalModeButton.alpha = 0.0;
         this.normalModeButton.sleep();
+        this.hardModeButton.alpha = 0.0;
         this.hardModeButton.sleep();
+        this.extremeModeButton.alpha = 0.0;
         this.extremeModeButton.sleep();
         switch (playableMode) {
             case 3:
-                this.extremeModeButton.setAlpha(1, 0);
+                this.extremeModeButton.alpha = 1.0;
                 this.extremeModeButton.wakeUp();
+            // FALL THRU
             case 2:
-                this.hardModeButton.setAlpha(1, 0);
+                this.hardModeButton.alpha = 1.0;
                 this.hardModeButton.wakeUp();
+            // FALL THRU
             case 1:
-                this.normalModeButton.setAlpha(1, 0);
+                this.normalModeButton.alpha = 1.0;
                 this.normalModeButton.wakeUp();
+            // FALL THRU
             case 0:
-                this.easyModeButton.setAlpha(1, 0);
+                this.easyModeButton.alpha = 1.0;
                 this.easyModeButton.wakeUp();
         }
         var self = this;
-        this.easyModeButton.onpointingstart = function () {
+        this.easyModeButton.onpointstart = function () {
             playMode = PLAY_MODE.EASY;
             stageTimer = playMode.timer_max;
-            self.app.replaceScene(GameScene());
+            self.exit();
         };
-        this.normalModeButton.onpointingstart = function () {
+        this.normalModeButton.onpointstart = function () {
             playMode = PLAY_MODE.NORMAL;
             stageTimer = playMode.timer_max;
-            self.app.replaceScene(GameScene());
+            self.exit();
         };
-        this.hardModeButton.onpointingstart = function () {
+        this.hardModeButton.onpointstart = function () {
             playMode = PLAY_MODE.HARD;
             stageTimer = playMode.timer_max;
-            self.app.replaceScene(GameScene());
+            self.exit();
         };
-        this.extremeModeButton.onpointingstart = function () {
+        this.extremeModeButton.onpointstart = function () {
             playMode = PLAY_MODE.EXTREME;
             stageTimer = playMode.timer_max;
-            self.app.replaceScene(GameScene());
+            self.exit();
         };
     },
 
@@ -369,219 +398,165 @@ tm.define("TitleScene", {
         app.background = "rgba(0, 0, 0, 1.0)"; // 背景色
         // 時間が来たらデモへ
         //        if(++this.localTimer >= 5*app.fps){
-        //            this.app.replaceScene(DemoScene());
+        //            this.exit();DemoScene());
         //        }
-    }
-});
-
-/*
- * デモ
- */
-tm.define("DemoScene", {
-    superClass: "tm.app.Scene",
-
-    init: function () {
-        this.superInit();
-        this.fromJSON({
-            children: [
-                {
-                    type: "Label", name: "demoLabel",
-                    x: SCREEN_CENTER_X,
-                    y: 320,
-                    fillStyle: "#888",
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "",
-                    align: "center",
-                },
-            ]
-        });
-        this.localTimer = 0;
-    },
-
-    update: function (app) {
-        // 時間が来たらタイトルへ
-        if (++this.localTimer >= 5 * app.fps) {
-            this.app.replaceScene(TitleScene());
-        }
-
-        // タッチしたらタイトルへ
-        var pointing = app.pointing;
-        // タッチしているかを判定
-        if (pointing.getPointing()) {
-            this.app.replaceScene(TitleScene());
-        }
     }
 });
 
 /*
  * ゲーム
  */
-tm.define("GameScene", {
-    superClass: "tm.app.Scene",
+phina.define("GameScene", {
+    superClass: 'DisplayScene',
 
-    init: function () {
-        this.superInit();
+    init: function (option) {
+        this.superInit(option);
 
-        group0 = tm.display.CanvasElement().addChildTo(this);
-        group1 = tm.display.CanvasElement().addChildTo(this);
-        group2 = tm.display.CanvasElement().addChildTo(this);
+        group0 = DisplayElement().addChildTo(this);
+        group1 = DisplayElement().addChildTo(this);
+        group2 = DisplayElement().addChildTo(this);
+        group3 = DisplayElement().addChildTo(this);
 
         clearArrays();
         player = new Player().addChildTo(group0);
 
-        this.fromJSON({
-            children: [
-                {
-                    type: "Label", name: "initStageNumLabel",
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y - 128,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 128,
-                    fontFamily: FONT_FAMILY,
-                    text: "STAGE\n\n1",
-                    align: "center",
-                },
-                {
-                    type: "Label", name: "timeStrLabel",
-                    x: SCREEN_WIDTH - 160,
-                    y: 64,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "TIME",
-                    align: "center",
-                },
-                {
-                    type: "Label", name: "nowStageTimerLabel",
-                    x: SCREEN_WIDTH - 48,
-                    y: 128,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "",
-                    align: "right",
-                },
-                {
-                    type: "Label", name: "nowStageNumStrLabel",
-                    x: 0 + 16,
-                    y: 64,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "STAGE",
-                    align: "left",
-                },
-                {
-                    type: "Label", name: "nowStageNumLabel",
-                    x: 0 + 16,
-                    y: 128,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "1",
-                    align: "left",
-                },
-                {
-                    type: "Label", name: "gameClearLabel",
-                    x: SCREEN_CENTER_X,
-                    y: (SCREEN_CENTER_Y / 2) - 180,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "GAME CLEAR",
-                    align: "center",
-                },
-                {
-                    type: "Label", name: "gameOverLabel",
-                    x: SCREEN_CENTER_X,
-                    y: (SCREEN_CENTER_Y / 2) - 180,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "GAME OVER",
-                    align: "center",
-                },
-                {
-                    type: "Label", name: "colorLabel",
-                    x: SCREEN_CENTER_X,
-                    y: SCREEN_CENTER_Y - 64,
-                    fillStyle: "#fff",
-                    shadowColor: "#000",
-                    shadowBlur: 10,
-                    fontSize: 64,
-                    fontFamily: FONT_FAMILY,
-                    text: "",
-                    align: "center",
-                },
+        this.initStageNumLabel = Label({
+            text: "STAGE\n\n1",
+            fontSize: 128,
+            fontFamily: FONT_FAMILY,
+            align: "center",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y - 128,
+        }).addChildTo(group3);
+        this.timeStrLabel = Label({
+            text: "TIME",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "center",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: SCREEN_WIDTH - 160,
+            y: 64,
+        }).addChildTo(group3);
+        this.nowStageTimerLabel = Label({
+            text: "",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "right",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: SCREEN_WIDTH - 48,
+            y: 128,
+        }).addChildTo(group3);
+        this.nowStageNumStrLabel = Label({
+            text: "STAGE",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "left",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: 0 + 16,
+            y: 64,
+        }).addChildTo(group3);
+        this.nowStageNumLabel = Label({
+            text: "1",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "left",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: 0 + 16,
+            y: 128,
+        }).addChildTo(group3);
+        this.gameClearLabel = Label({
+            text: "GAME CLEAR",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "center",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: SCREEN_CENTER_X,
+            y: (SCREEN_CENTER_Y / 2) - 180,
+        }).addChildTo(group3);
+        this.gameOverLabel = Label({
+            text: "GAME OVER",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "center",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: SCREEN_CENTER_X,
+            y: (SCREEN_CENTER_Y / 2) - 180,
+        }).addChildTo(group3);
+        this.colorLabel = Label({
+            text: "",
+            fontSize: 64,
+            fontFamily: FONT_FAMILY,
+            align: "center",
+            fill: "#fff",
+            shadow: "#000",
+            shadowBlur: 10,
+            x: SCREEN_CENTER_X,
+            y: SCREEN_CENTER_Y,
+        }).addChildTo(group3);
 
-                {
-                    type: "FlatButton", name: "tweetButton",
-                    init: [
-                        {
-                            text: "TWEET",
-                            fontFamily: FONT_FAMILY,
-                            fontSize: 32,
-                            bgColor: "hsl(240, 80%, 70%)",
-                        }
-                    ],
-                    x: SCREEN_CENTER_X - (SCREEN_CENTER_X / 2),
-                    y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
-                    alpha: 0.0,
-                },
-                {
-                    type: "FlatButton", name: "restartButton",
-                    init: [
-                        {
-                            text: "RESTART",
-                            fontFamily: FONT_FAMILY,
-                            fontSize: 32,
-                            cornerRadius: 8,
-                            bgColor: "hsl(240, 0%, 70%)",
-                        }
-                    ],
-                    x: SCREEN_CENTER_X + (SCREEN_CENTER_X / 2),
-                    y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
-                    alpha: 0.0,
-                },
-            ]
-        });
+        this.tweetButton = Button({
+            text: "POST",
+            fontSize: 32,
+            fontFamily: FONT_FAMILY,
+            fill: "#7575EF",
+            x: SCREEN_CENTER_X - (SCREEN_CENTER_X / 2),
+            y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
+            cornerRadius: 8,
+            width: 240,
+            height: 60,
+        }).addChildTo(group3);
+        this.restartButton = Button({
+            text: "RESTART",
+            fontSize: 32,
+            fontFamily: FONT_FAMILY,
+            fill: "#B2B2B2",
+            x: SCREEN_CENTER_X + (SCREEN_CENTER_X / 2),
+            y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
+            cornerRadius: 8,
+            width: 240,
+            height: 60,
+        }).addChildTo(group3);
 
-        this.gameClearLabel.setAlpha(0.0);
-        this.gameOverLabel.setAlpha(0.0);
-        this.colorLabel.setAlpha(0.0);
+        this.gameClearLabel.alpha = 0.0;
+        this.gameOverLabel.alpha = 0.0;
+        this.colorLabel.alpha = 0.0;
+        this.tweetButton.alpha = 0.0;
         this.tweetButton.sleep();
+        this.restartButton.alpha = 0.0;
         this.restartButton.sleep();
 
-        initStageNumBG = tm.display.RoundRectangleShape(SCREEN_WIDTH, SCREEN_WIDTH, {
-            fillStyle: "#000000",   // 塗り潰し色
-            strokeStyle: "#000000", // 縁の色
-            lineWidth: 0
+        initStageNumBG = phina.display.RectangleShape({
+            width: SCREEN_WIDTH,
+            height: SCREEN_WIDTH,
+            fill: "#000000",
+            stroke: "#000000",
+            strokeWidth: 0
         });
         initStageNumBG.setPosition(SCREEN_CENTER_X, SCREEN_CENTER_Y);
         initStageNumBG.setScale(1.0, 1.0);
         initStageNumBG.interactive = false;
-        initStageNumBG.setAlpha(1.0);
+        initStageNumBG.alpha = 1.0;
         initStageNumBG.addChildTo(group2);
 
         var self = this;
-        this.restartButton.onpointingstart = function () {
-            self.app.replaceScene(GameScene());
+        this.restartButton.onpointstart = function () {
             stageTimer = playMode.timer_max;
+            self.exit();
         };
 
         this.buttonAlpha = 0.0;
@@ -598,8 +573,8 @@ tm.define("GameScene", {
             if (stageInitTimer === 0) {
                 stageNum++;
                 this.initStageNumLabel.text = "STAGE\n\n" + stageNum;
-                this.initStageNumLabel.setAlpha(1.0);
-                initStageNumBG.setAlpha(1.0);
+                this.initStageNumLabel.alpha = 1.0;
+                initStageNumBG.alpha = 1.0;
                 this.nowStageTimerLabel.text = Math.floor(stageTimer / app.fps);
                 this.nowStageNumLabel.text = stageNum;
 
@@ -617,10 +592,12 @@ tm.define("GameScene", {
                     var tmpColor = buttonColorTbl[playMode.idx][playMode === PLAY_MODE.EXTREME ? 0 : (stageNum - 1)];
                     var tmpFillStyle = tmpColorBase.replaceAll('xx', tmpColor).replaceAll('yy', tmpColor).replaceAll('zz', tmpColor);
                     console.log(">>>" + tmpFillStyle);
-                    var tmpLilyBG = tm.display.RoundRectangleShape(360, 360, {
-                        fillStyle: tmpFillStyle,   // 塗り潰し色
-                        strokeStyle: "#000000", // 縁の色
-                        lineWidth: 0
+                    var tmpLilyBG = phina.display.RectangleShape({
+                        width: 360,
+                        height: 360,
+                        fill: tmpFillStyle,
+                        stroke: "#000000",
+                        strokeWidth: 0
                     });
                     tmpLilyBG.setPosition(tmpPos.x, tmpPos.y);
                     tmpLilyBG.setScale(0.9, 0.9);
@@ -629,7 +606,7 @@ tm.define("GameScene", {
                     tmpLilyBG.colorStr = tmpFillStyle.substr(1, 2) + "\n" + tmpFillStyle.substr(3, 2) + "\n" + tmpFillStyle.substr(5, 2);
                     //tmpLilyBG.checkHierarchy = true;
                     if (buttonIdx === 7) {
-                        tmpLilyBG.onpointingstart = function () {
+                        tmpLilyBG.onpointstart = function () {
                             if (player.status.isStart) {
                                 // NGの後にタップされても無視する
                                 if (player.result !== PL_RESULT.NG) {
@@ -639,7 +616,7 @@ tm.define("GameScene", {
                             }
                         }
                     } else {
-                        tmpLilyBG.onpointingstart = function () {
+                        tmpLilyBG.onpointstart = function () {
                             if (player.status.isStart) {
                                 player.result = PL_RESULT.NG;
                                 player.color = this.colorStr;
@@ -658,8 +635,8 @@ tm.define("GameScene", {
             if (++stageInitTimer > 1 * app.fps) {
                 stageInitTimer = 0;
                 player.status = PL_STATUS.START;
-                this.initStageNumLabel.setAlpha(0.0);
-                initStageNumBG.setAlpha(0.0);
+                this.initStageNumLabel.alpha = 0.0;
+                initStageNumBG.alpha = 0.0;
             }
             return;
         }
@@ -678,7 +655,7 @@ tm.define("GameScene", {
                     // next stage
                     player.status = PL_STATUS.INIT;
                     player.result = PL_RESULT.NONE;
-                    correctSE.play();
+                    SoundManager.play("correct_se");
                 } else {
                     // game clear
                     player.status = PL_STATUS.END;
@@ -691,9 +668,9 @@ tm.define("GameScene", {
         } else {
             if (!this.stopBGM) {
                 if (player.result === PL_RESULT.OK) {
-                    clearSE.play();
+                    SoundManager.play("clear_se");
                 } else {
-                    wrongSE.play();
+                    SoundManager.play("wrong_se");
                 }
                 this.stopBGM = true;
 
@@ -710,7 +687,7 @@ tm.define("GameScene", {
                     }
                 }
                 this.tweetButton.onclick = function () {
-                    var twitterURL = tm.social.Twitter.createURL({
+                    var twitterURL = phina.social.Twitter.createURL({
                         type: "tweet",
                         text: tweetText,
                         hashtags: ["ネムレス", "NEMLESSS"],
@@ -734,19 +711,19 @@ tm.define("GameScene", {
                 }
             }
 
-            this.colorLabel.setAlpha(1.0);
+            this.colorLabel.alpha = 1.0;
             this.colorLabel.text = player.color;
             this.buttonAlpha += 0.05;
             if (this.buttonAlpha > 1.0) {
                 this.buttonAlpha = 1.0;
             }
             if (player.result === PL_RESULT.OK) {
-                this.gameClearLabel.setAlpha(this.buttonAlpha);
+                this.gameClearLabel.alpha = this.buttonAlpha;
             } else {
-                this.gameOverLabel.setAlpha(this.buttonAlpha);
+                this.gameOverLabel.alpha = this.buttonAlpha;
             }
-            this.tweetButton.setAlpha(this.buttonAlpha);
-            this.restartButton.setAlpha(this.buttonAlpha);
+            this.tweetButton.alpha = this.buttonAlpha;
+            this.restartButton.alpha = this.buttonAlpha;
             if (this.buttonAlpha > 0.7) {
                 this.tweetButton.wakeUp();
                 this.restartButton.wakeUp();
@@ -759,12 +736,12 @@ tm.define("GameScene", {
 /*
  * Player
  */
-tm.define("Player", {
-    superClass: "tm.app.Sprite",
+phina.define("Player", {
+    superClass: "Sprite",
 
-    init: function () {
-        this.superInit("lily", 360, 360);
-        this.setPosition(SCREEN_CENTER_X, SCREEN_CENTER_Y).setScale(0, 0);
+    init: function (option) {
+        this.superInit("lily");
+        this.setPosition(SCREEN_CENTER_X, SCREEN_CENTER_Y).setSize(360, 360).setScale(0, 0);
         this.setInteractive(false);
         this.status = PL_STATUS.INIT;
         this.result = PL_RESULT.NONE;
@@ -778,15 +755,14 @@ tm.define("Player", {
 /*
  * ジャケ絵
  */
-tm.define("LilyFG", {
-    superClass: "tm.app.Sprite",
+phina.define("LilyFG", {
+    superClass: "Sprite",
 
     init: function (posX, posY) {
-        this.spriteName = "lily";
-        this.superInit(this.spriteName, 360, 360);
+        this.superInit("lily");
         this.direct = '';
         this.setInteractive(false);
-        this.setPosition(posX, posY).setScale(0.9, 0.9);
+        this.setPosition(posX, posY).setSize(360, 360).setScale(0.9, 0.9);
     },
 
     update: function (app) {
