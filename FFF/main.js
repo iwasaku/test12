@@ -82,22 +82,6 @@ var PL_RESULT = defineEnum({
     },
 });
 
-var group0 = null;
-var group1 = null;
-var group2 = null;
-var group3 = null;
-var player = null;
-var stageInitTimer = 0;
-var stageNum = 0;
-var stageTimer = 0;
-var lilyNumArray = [];
-var lilyArray = [];
-var nowScore = 0;
-var totalSec = 0;
-var playableMode = 0;
-var playMode = null;
-var initStageNumBG = null;
-
 const buttonPosTbl = [
     { x: SCREEN_CENTER_X - 360, y: SCREEN_CENTER_Y - 360 },
     { x: SCREEN_CENTER_X, y: SCREEN_CENTER_Y - 360 },
@@ -181,6 +165,27 @@ const buttonColorTbl = [
         "FE",
     ],
 ];
+
+var group0 = null;
+var group1 = null;
+var group2 = null;
+var group3 = null;
+var player = null;
+var stageInitTimer = 0;
+var stageNum = 0;
+var stageTimer = 0;
+var lilyNumArray = [];
+var lilyArray = [];
+var nowScore = 0;
+var totalSec = 0;
+var playableMode = 0;
+var playMode = null;
+var initStageNumBG = null;
+
+// 共有ボタン用
+let postText = null;
+const postURL = "https://iwasaku.github.io/test12/FFF/";
+const postTags = "#ネムレス #NEMLESSS";
 
 phina.main(function () {
     var app = GameApp({
@@ -272,14 +277,22 @@ phina.define("LogoScene", {
     init: function (option) {
         this.superInit(option);
         this.localTimer = 0;
+        this.font1 = false;
+        this.font2 = false;
     },
 
     update: function (app) {
-        // フォント読み込み待ち
+        // フォントロード完了待ち
         var self = this;
-        document.fonts.load('12px "Press Start 2P"').then(function () {
-            self.exit();
+        document.fonts.load('10pt "Press Start 2P"').then(function () {
+            self.font1 = true;
         });
+        document.fonts.load('10pt "icomoon"').then(function () {
+            self.font2 = true;
+        });
+        if (this.font1 && this.font2) {
+            self.exit();
+        }
     }
 });
 
@@ -510,16 +523,71 @@ phina.define("GameScene", {
         }).addChildTo(group3);
 
         this.tweetButton = Button({
-            text: "POST",
+        }).addChildTo(group3);
+
+
+        // X
+        this.xButton = Button({
+            text: String.fromCharCode(0xe902),
             fontSize: 32,
-            fontFamily: FONT_FAMILY,
+            fontFamily: "icomoon",
+            fill: "#7575EF",
+            x: SCREEN_CENTER_X - (SCREEN_CENTER_X / 2) - 80,
+            y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
+            cornerRadius: 8,
+            width: 60,
+            height: 60,
+        }).addChildTo(group3);
+        this.xButton.onclick = function () {
+            // https://developer.x.com/en/docs/twitter-for-websites/tweet-button/guides/web-intent
+            let shareURL = "https://x.com/intent/tweet?text=" + encodeURIComponent(postText + "\n" + postTags + "\n") + "&url=" + encodeURIComponent(postURL);
+            window.open(shareURL);
+        };
+        this.xButton.alpha = 0.0;
+        this.xButton.sleep();
+
+        // threads
+        this.threadsButton = Button({
+            text: String.fromCharCode(0xe901),
+            fontSize: 32,
+            fontFamily: "icomoon",
             fill: "#7575EF",
             x: SCREEN_CENTER_X - (SCREEN_CENTER_X / 2),
             y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
             cornerRadius: 8,
-            width: 240,
+            width: 60,
             height: 60,
         }).addChildTo(group3);
+        this.threadsButton.onclick = function () {
+            // https://developers.facebook.com/docs/threads/threads-web-intents/
+            // web intentでのハッシュタグの扱いが環境（ブラウザ、iOS、Android）によって違いすぎるので『#』を削って通常の文字列にしておく
+            let shareURL = "https://www.threads.net/intent/post?text=" + encodeURIComponent(postText + "\n\n" + postTags.replace(/#/g, "")) + "&url=" + encodeURIComponent(postURL);
+            window.open(shareURL);
+        };
+        this.threadsButton.alpha = 0.0;
+        this.threadsButton.sleep();
+
+        // bluesky
+        this.bskyButton = Button({
+            text: String.fromCharCode(0xe900),
+            fontSize: 32,
+            fontFamily: "icomoon",
+            fill: "#7575EF",
+            x: SCREEN_CENTER_X - (SCREEN_CENTER_X / 2) + 80,
+            y: SCREEN_CENTER_Y + (SCREEN_CENTER_Y / 2) + 180,
+            cornerRadius: 8,
+            width: 60,
+            height: 60,
+        }).addChildTo(group3);
+        this.bskyButton.onclick = function () {
+            // https://docs.bsky.app/docs/advanced-guides/intent-links
+            let shareURL = "https://bsky.app/intent/compose?text=" + encodeURIComponent(postText + "\n" + postTags + "\n" + postURL);
+            window.open(shareURL);
+        };
+        this.bskyButton.alpha = 0.0;
+        this.bskyButton.sleep();
+
+
         this.restartButton = Button({
             text: "RESTART",
             fontSize: 32,
@@ -535,8 +603,6 @@ phina.define("GameScene", {
         this.gameClearLabel.alpha = 0.0;
         this.gameOverLabel.alpha = 0.0;
         this.colorLabel.alpha = 0.0;
-        this.tweetButton.alpha = 0.0;
-        this.tweetButton.sleep();
         this.restartButton.alpha = 0.0;
         this.restartButton.sleep();
 
@@ -676,25 +742,17 @@ phina.define("GameScene", {
 
                 var self = this;
                 // tweet ボタン
-                var tweetText = "0xFFFFFF" + playMode.tweet_txt + "\n";
+                postText = "0xFFFFFF" + playMode.tweet_txt + "\n";
                 if (player.result === PL_RESULT.OK) {
-                    tweetText += "全ステージクリア\nクリアタイム" + ((playMode.timer_max - stageTimer) / app.fps).toPrecision(5) + "秒\n";
+                    postText += "全ステージクリア\nクリアタイム" + ((playMode.timer_max - stageTimer) / app.fps).toPrecision(5) + "秒";
                 } else {
                     if (stageNum === 1) {
-                        tweetText += "記録無し\n";
+                        postText += "記録無し";
                     } else {
-                        tweetText += "ステージ" + (stageNum - 1) + "　クリア\n";
+                        postText += "ステージ" + (stageNum - 1) + "　クリア";
                     }
                 }
-                this.tweetButton.onclick = function () {
-                    var twitterURL = phina.social.Twitter.createURL({
-                        type: "tweet",
-                        text: tweetText,
-                        hashtags: ["ネムレス", "NEMLESSS"],
-                        url: "https://iwasaku.github.io/test12/FFF/",
-                    });
-                    window.open(twitterURL);
-                };
+
                 // モード開放
                 if (player.result === PL_RESULT.OK) {
                     switch (playMode) {
@@ -722,10 +780,14 @@ phina.define("GameScene", {
             } else {
                 this.gameOverLabel.alpha = this.buttonAlpha;
             }
-            this.tweetButton.alpha = this.buttonAlpha;
+            this.xButton.alpha = this.buttonAlpha;
+            this.threadsButton.alpha = this.buttonAlpha;
+            this.bskyButton.alpha = this.buttonAlpha;
             this.restartButton.alpha = this.buttonAlpha;
             if (this.buttonAlpha > 0.7) {
-                this.tweetButton.wakeUp();
+                this.xButton.wakeUp();
+                this.threadsButton.wakeUp();
+                this.bskyButton.wakeUp();
                 this.restartButton.wakeUp();
             }
         }
